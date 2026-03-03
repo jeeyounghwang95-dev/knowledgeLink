@@ -1,0 +1,259 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: #f8f9fa;
+  }
+
+  body {
+    margin: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  #root {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+@layer utilities {
+  .animate-in {
+    animation-duration: 300ms;
+    animation-fill-mode: both;
+  }
+
+  .fade-in {
+    opacity: 0;
+    animation-name: fade-in;
+  }
+
+  .slide-in-from-right-4 {
+    transform: translateX(1rem);
+    animation-name: slide-in-right;
+  }
+
+  .slide-in-from-left-2 {
+    transform: translateX(-0.5rem);
+    animation-name: slide-in-left;
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slide-in-right {
+    from {
+      transform: translateX(1rem);
+      opacity: 0;
+    }
+
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slide-in-left {
+    from {
+      transform: translateX(-0.5rem);
+      opacity: 0;
+    }
+
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+}
+
+.react-flow__node {
+  border-radius: 12px;
+  border: none;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.react-flow__handle {
+  width: 8px !important;
+  height: 8px !important;
+  background: #94a3b8 !important;
+  border: 2px solid white !important;
+}
+
+.react-flow__controls {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+/* Quill Styling */
+.quill-wrapper {
+  position: relative;
+}
+
+.quill-wrapper .ql-toolbar {
+  position: absolute;
+  top: -45px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  z-index: 1000;
+  display: none;
+  white-space: nowrap;
+  padding: 4px !important;
+}
+
+.react-flow__node.selected .quill-wrapper .ql-toolbar {
+  display: block;
+}
+
+.quill-wrapper .ql-container {
+  border: none !important;
+  font-family: inherit !important;
+}
+
+.quill-wrapper .ql-editor {
+  padding: 0 !important;
+  min-height: 20px;
+  font-size: 14px;
+}
+
+.read-only-editor .ql-toolbar {
+  display: none !important;
+}
+
+.quill-wrapper .ql-editor.ql-blank::before {
+  left: 0 !important;
+  font-style: normal;
+  color: #d1d5db;
+}
+
+/* Fix for Circle/Diamond shapes */
+.rounded-full .quill-wrapper .ql-editor,
+.rotate-45 .quill-wrapper .ql-editor {
+  text-align: center;
+}
+
+/* Sidebar Quill Styling */
+.sidebar-quill .ql-toolbar {
+  border: none !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  background: white;
+  padding: 8px !important;
+}
+
+.sidebar-quill .ql-container {
+  border: none !important;
+  min-height: 150px;
+}
+
+.sidebar-quill .ql-editor {
+  padding: 12px 16px !important;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
+
+.premium-shadow {
+  box-shadow: 0 10px 50px -12px rgba(0, 0, 0, 0.08);
+}
+
+.premium-blur {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.ql-editor {
+  min-height: auto !important;
+  white-space: normal !important;
+  text-align: inherit !important;
+}
+
+.ql-editor p {
+  margin: 0 0 0.5em 0 !important;
+  line-height: 1.5;
+  text-align: inherit !important;
+}
+
+
+.ql-editor p:last-child {
+  margin-bottom: 0 !important;
+}
+
+.node-quill-container .ql-container.ql-snow {
+  border: none !important;
+}
+
+/* Rich Text List Styles Recovery */
+.node-text-content ul,
+.node-text-content ol {
+  padding-left: 0 !important;
+  margin: 0.5rem 0 !important;
+  list-style-position: inside !important;
+  /* Ensure markers are inside the container */
+  width: 100% !important;
+}
+
+.node-text-content ul {
+  list-style-type: disc !important;
+}
+
+.node-text-content ol {
+  list-style-type: decimal !important;
+}
+
+.node-text-content li {
+  display: list-item !important;
+  margin-bottom: 0.25rem !important;
+}
+
+/* Ensure child elements like p within li don't mess up markers */
+.node-text-content li p {
+  display: inline !important;
+  margin: 0 !important;
+}
+
+/* Custom Editor adjust */
+.ql-editor {
+  padding: 0 !important;
+  height: auto !important;
+  overflow-y: hidden !important;
+}
+
+
+.read-only-editor .ql-editor {
+  cursor: default !important;
+}
