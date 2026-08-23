@@ -217,6 +217,29 @@
   border: none !important;
 }
 
+/*
+  Node body text.
+  The node is NOT a .ql-editor, so none of Quill's block styling reaches it and
+  Tailwind's preflight has already reset `p { margin: 0 }`. These rules restore
+  paragraph rhythm and keep empty paragraphs (Enter pressed twice) visible.
+*/
+.node-text-content {
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.node-text-content p {
+  display: block;
+  margin: 0 0 0.4em 0;
+  min-height: 1em;
+  /* text-align is inherited from the node's alignment container */
+  text-align: inherit;
+}
+
+.node-text-content p:last-child {
+  margin-bottom: 0;
+}
+
 /* Rich Text List Styles Recovery */
 .node-text-content ul,
 .node-text-content ol {

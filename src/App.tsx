@@ -74,9 +74,13 @@ const Flow = ({ onBack }: { onBack: () => void }) => {
   }, [searchQuery, nodes, setCenter]);
 
   const handleSave = async () => {
-    const title = currentMap?.title || prompt('저장할 제목을 입력하세요:') || '제목 없음';
-    await saveMindmap(title);
-    alert('저장되었습니다.');
+    const title = currentMap?.title || prompt('저장할 제목을 입력하세요:')?.trim();
+    if (!title) return;
+
+    const saved = await saveMindmap(title);
+    alert(saved
+      ? '저장되었습니다.'
+      : '저장하지 못했습니다. 연결을 확인하고 다시 시도해 주세요.');
   };
 
   return (
@@ -159,7 +163,7 @@ const Flow = ({ onBack }: { onBack: () => void }) => {
 };
 
 const MainApp = () => {
-  const { user, initializeAuth, loadMindmap } = useStore();
+  const { user, initializeAuth, loadMindmap, resetMindmap } = useStore();
   const [view, setView] = useState<'dashboard' | 'flow'>('dashboard');
 
   useEffect(() => {
@@ -186,7 +190,9 @@ const MainApp = () => {
     }} />;
   }
 
-  return <Flow onBack={() => setView('dashboard')} />;
+  // 대시보드로 나갈 때 편집 세션을 비운다. currentMindmapId가 남아 있으면
+  // 다음 저장이 엉뚱한 마인드맵을 덮어쓴다.
+  return <Flow onBack={() => { resetMindmap(); setView('dashboard'); }} />;
 };
 
 export default function App() {

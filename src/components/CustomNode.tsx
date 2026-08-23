@@ -166,18 +166,20 @@ const CustomNode = ({ id, data, selected }: { data: NodeData; id: string; select
                     className="nodrag nowheel w-full pointer-events-auto flex flex-col node-quill-container"
                     style={{ textAlign: data.textAlign as any || 'center' }}
                 >
+                    {/*
+                        여기는 블록 레이아웃이어야 한다.
+                        - flex 컨테이너 안에서는 인라인 레이아웃이 일어나지 않아
+                          <br>이 무시되고 빈 문단이 0px로 눌린다.
+                        - ql-snow는 툴바/툴팁 스킨용 클래스라 본문 서식이 붙지 않는다.
+                          문단 여백은 index.css의 .node-text-content 규칙이 담당한다.
+                        가로 정렬은 상위 컨테이너의 text-align이 처리한다.
+                    */}
                     <div
                         className={cn(
-                            "w-full bg-transparent border-none text-sm node-text-content ql-snow whitespace-pre-wrap break-words break-all",
+                            "w-full bg-transparent border-none text-sm node-text-content whitespace-pre-wrap break-words",
                             !isEditMode && "read-only-editor"
                         )}
-                        style={{
-                            padding: 0,
-                            textAlign: 'inherit',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: data.textAlign === 'center' || !data.textAlign ? 'center' : (data.textAlign === 'right' ? 'flex-end' : 'flex-start')
-                        }}
+                        style={{ padding: 0, textAlign: 'inherit' }}
                         dangerouslySetInnerHTML={{ __html: data.content || '<p><br></p>' }}
                     />
                 </div>

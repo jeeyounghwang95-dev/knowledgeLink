@@ -24,6 +24,17 @@ export interface NodeData {
     textAlign?: 'left' | 'center' | 'right';
 }
 
+// 새 마인드맵의 시작 노드. 호출할 때마다 새 객체를 만들어
+// 여러 마인드맵이 같은 노드 객체를 공유하지 않도록 한다.
+const createDefaultNodes = (): Node<NodeData>[] => [
+    {
+        id: '1',
+        type: 'custom',
+        data: { title: '메인 아이디어', content: '설명을 입력하세요', shape: 'rectangle', color: '#ffffff', textAlign: 'left' },
+        position: { x: 250, y: 50 },
+    },
+];
+
 interface MindMapState {
     nodes: Node<NodeData>[];
     edges: Edge[];
@@ -56,21 +67,20 @@ interface MindMapState {
     folders: any[];
     mindmaps: any[];
     currentMindmapId: string | null;
+    currentFolderId: string | null;
     fetchFolders: () => Promise<void>;
     fetchMindmaps: (folderId?: string | null) => Promise<void>;
-    saveMindmap: (title: string, folderId?: string | null) => Promise<void>;
+    /** 항상 새 행을 만든다. 편집 중인 마인드맵에는 손대지 않는다. 실패하면 null. */
+    createMindmap: (title: string, folderId?: string | null) => Promise<string | null>;
+    /** folderId를 넘기지 않으면 기존 소속 폴더를 그대로 둔다. 성공 여부를 반환. */
+    saveMindmap: (title: string, folderId?: string | null) => Promise<boolean>;
     loadMindmap: (id: string) => Promise<void>;
+    /** 편집 세션을 비우고 대시보드로 돌아갈 때 쓴다. */
+    resetMindmap: () => void;
 }
 
 export const useStore = create<MindMapState>((set, get) => ({
-    nodes: [
-        {
-            id: '1',
-            type: 'custom',
-            data: { title: '메인 아이디어', content: '설명을 입력하세요', shape: 'rectangle', color: '#ffffff', textAlign: 'left' },
-            position: { x: 250, y: 50 },
-        },
-    ],
+    nodes: createDefaultNodes(),
     edges: [],
     edgeType: 'bezier',
     edgeColor: '#b1b1b7',
@@ -83,6 +93,7 @@ export const useStore = create<MindMapState>((set, get) => ({
     folders: [],
     mindmaps: [],
     currentMindmapId: null,
+    currentFolderId: null,
 
     onNodesChange: (changes: NodeChange[]) => {
         if (!get().isEditMode) return;
@@ -155,7 +166,14 @@ export const useStore = create<MindMapState>((set, get) => ({
     },
     signOut: async () => {
         await supabase.auth.signOut();
-        set({ user: null, session: null, currentMindmapId: null, nodes: [], edges: [] });
+        set({
+            user: null,
+            session: null,
+            currentMindmapId: null,
+            currentFolderId: null,
+            nodes: createDefaultNodes(),
+            edges: [],
+        });
     },
 
     // Data Actions
@@ -174,34 +192,82 @@ export const useStore = create<MindMapState>((set, get) => ({
         const { data, error } = await query;
         if (!error) set({ mindmaps: data });
     },
-    saveMindmap: async (title, folderId = null) => {
-        const { nodes, edges, currentMindmapId, user } = get();
-        if (!user) return;
+    createMindmap: async (title, folderId = null) => {
+        const { user } = get();
+        if (!user) return null;
 
-        const payload = {
-            user_id: user.id,
-            title,
-            folder_id: folderId,
-            nodes,
-            edges,
-            updated_at: new Date().toISOString()
-        };
+        const { data, error } = await supabase
+            .from('mindmaps')
+            .insert({
+                user_id: user.id,
+                title,
+                folder_id: folderId,
+                nodes: createDefaultNodes(),
+                edges: [],
+                updated_at: new Date().toISOString(),
+            })
+            .select()
+            .single();
+
+        if (error || !data) {
+            console.error('Error creating mindmap:', error);
+            return null;
+        }
+        return data.id as string;
+    },
+    saveMindmap: async (title, folderId) => {
+        const { nodes, edges, currentMindmapId, currentFolderId, user } = get();
+        if (!user) return false;
 
         if (currentMindmapId) {
-            const { error } = await supabase
-                .from('mindmaps')
-                .update(payload)
-                .eq('id', currentMindmapId);
-            if (error) console.error('Error updating mindmap:', error);
-        } else {
+            // folderId를 명시적으로 넘긴 경우에만 소속 폴더를 바꾼다.
+            // 넘기지 않았는데 null을 써 넣으면 폴더 안의 맵이 루트로 튀어나온다.
+            const payload = {
+                title,
+                nodes,
+                edges,
+                updated_at: new Date().toISOString(),
+                ...(folderId !== undefined ? { folder_id: folderId } : {}),
+            };
+
             const { data, error } = await supabase
                 .from('mindmaps')
-                .insert(payload)
-                .select()
-                .single();
-            if (error) console.error('Error inserting mindmap:', error);
-            else if (data) set({ currentMindmapId: data.id });
+                .update(payload)
+                .eq('id', currentMindmapId)
+                .select('id');
+
+            if (error) {
+                console.error('Error updating mindmap:', error);
+                return false;
+            }
+            // RLS에 막히면 error 없이 0건이 갱신된다. 이걸 성공으로 보면 안 된다.
+            if (!data || data.length === 0) {
+                console.error('Error updating mindmap: no row was updated', currentMindmapId);
+                return false;
+            }
+            if (folderId !== undefined) set({ currentFolderId: folderId });
+            return true;
         }
+
+        const { data, error } = await supabase
+            .from('mindmaps')
+            .insert({
+                user_id: user.id,
+                title,
+                folder_id: folderId ?? currentFolderId,
+                nodes,
+                edges,
+                updated_at: new Date().toISOString(),
+            })
+            .select()
+            .single();
+
+        if (error || !data) {
+            console.error('Error inserting mindmap:', error);
+            return false;
+        }
+        set({ currentMindmapId: data.id, currentFolderId: data.folder_id ?? null });
+        return true;
     },
     loadMindmap: async (id) => {
         const { data, error } = await supabase
@@ -213,9 +279,16 @@ export const useStore = create<MindMapState>((set, get) => ({
         if (!error && data) {
             set({
                 currentMindmapId: data.id,
-                nodes: data.nodes as Node<NodeData>[],
-                edges: data.edges as Edge[]
+                currentFolderId: data.folder_id ?? null,
+                nodes: (data.nodes ?? createDefaultNodes()) as Node<NodeData>[],
+                edges: (data.edges ?? []) as Edge[],
             });
         }
-    }
+    },
+    resetMindmap: () => set({
+        currentMindmapId: null,
+        currentFolderId: null,
+        nodes: createDefaultNodes(),
+        edges: [],
+    }),
 }));

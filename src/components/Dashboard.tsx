@@ -3,7 +3,7 @@ import { useStore } from '../store/useStore';
 import { FolderPlus, FilePlus, ChevronRight, Folder, FileText, LogOut, Layout } from 'lucide-react';
 
 const Dashboard = ({ onSelectMindmap }: { onSelectMindmap: (id: string) => void }) => {
-    const { user, signOut, folders, mindmaps, fetchFolders, fetchMindmaps, saveMindmap } = useStore();
+    const { user, signOut, folders, mindmaps, fetchFolders, fetchMindmaps, createMindmap } = useStore();
     const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -24,10 +24,17 @@ const Dashboard = ({ onSelectMindmap }: { onSelectMindmap: (id: string) => void 
     };
 
     const handleCreateMindmap = async () => {
-        const title = prompt('마인드맵 제목을 입력하세요:');
+        const title = prompt('마인드맵 제목을 입력하세요:')?.trim();
         if (!title) return;
-        await saveMindmap(title, selectedFolderId);
-        fetchMindmaps(selectedFolderId);
+
+        // createMindmap은 항상 새 행을 만든다. 편집 중이던 마인드맵을
+        // 덮어쓰지 않도록 saveMindmap과 분리되어 있다.
+        const id = await createMindmap(title, selectedFolderId);
+        if (!id) {
+            alert('프로젝트를 만들지 못했습니다. 연결을 확인하고 다시 시도해 주세요.');
+            return;
+        }
+        await fetchMindmaps(selectedFolderId);
     };
 
     return (
