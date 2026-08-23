@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import React, { memo } from 'react';
 import { Handle, Position, useReactFlow, NodeResizer } from 'reactflow';
 import { Globe, Plus } from 'lucide-react';
 import { type NodeData, useStore } from '../store/useStore';
@@ -12,13 +12,19 @@ function cn(...inputs: ClassValue[]) {
 
 const LinkPreview = ({ url }: { url: string }) => {
     return (
-        <div className="mt-2 w-48 bg-white rounded-lg border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+        <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="nodrag block mt-2 w-48 bg-white rounded-lg border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+        >
             <div className="h-24 bg-gray-100 relative overflow-hidden flex items-center justify-center">
                 <img
                     src={`https://api.microlink.io?url=${encodeURIComponent(url)}&embed=screenshot.url`}
                     alt="preview"
                     className="w-full h-full object-cover"
-                    onError={(e) => {
+                    onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
                         (e.target as HTMLImageElement).style.display = 'none';
                     }}
                 />
@@ -28,7 +34,7 @@ const LinkPreview = ({ url }: { url: string }) => {
                 <p className="text-[10px] font-bold text-gray-800 truncate">{url.replace(/^https?:\/\//, '')}</p>
                 <p className="text-[8px] text-gray-400 mt-1 truncate">Click to visit site</p>
             </div>
-        </div>
+        </a>
     );
 };
 
@@ -78,7 +84,7 @@ const CustomNode = ({ id, data, selected }: { data: NodeData; id: string; select
     return (
         <div
             className={cn(
-                "min-w-[150px] min-h-[80px] flex flex-col p-6 relative group/node",
+                "min-w-[200px] max-w-[320px] min-h-[80px] flex flex-col p-6 relative group/node",
                 !isEditMode && 'cursor-default',
                 isHighlighted && 'ring-4 ring-yellow-300 rounded-xl'
             )}
@@ -162,7 +168,7 @@ const CustomNode = ({ id, data, selected }: { data: NodeData; id: string; select
                 >
                     <div
                         className={cn(
-                            "w-full bg-transparent border-none text-sm node-text-content ql-snow",
+                            "w-full bg-transparent border-none text-sm node-text-content ql-snow whitespace-pre-wrap break-words break-all",
                             !isEditMode && "read-only-editor"
                         )}
                         style={{
@@ -178,7 +184,7 @@ const CustomNode = ({ id, data, selected }: { data: NodeData; id: string; select
 
 
 
-                {data.url && <div className="mt-2 pointer-events-auto"><LinkPreview url={data.url} /></div>}
+                {data.url && <div className="pointer-events-auto"><LinkPreview url={data.url} /></div>}
             </div>
         </div>
 
