@@ -12,6 +12,28 @@ import {
 import { supabase } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
 
+/** 휴지통 보관 기간(일). 이 기간이 지나면 영구 삭제된다. */
+export const TRASH_RETENTION_DAYS = 30;
+
+/** 영구 삭제까지 남은 일수. 0이면 다음 정리 때 지워진다. */
+export const trashDaysLeft = (deletedAt: string) => {
+    const elapsedDays = Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86_400_000);
+    return Math.max(0, TRASH_RETENTION_DAYS - elapsedDays);
+};
+
+// RLS에 막히면 error 없이 0건이 처리된다. saveMindmap과 같은 이유로 건수를 확인한다.
+const changedOne = (data: unknown[] | null, error: unknown, what: string) => {
+    if (error) {
+        console.error('Error ' + what + ':', error);
+        return false;
+    }
+    if (!data || data.length === 0) {
+        console.error('Error ' + what + ': no row was affected');
+        return false;
+    }
+    return true;
+};
+
 export type NodeType = 'rectangle' | 'circle' | 'diamond' | 'parallelogram';
 export type AppMode = 'mindmap' | 'flowchart';
 
@@ -77,6 +99,19 @@ interface MindMapState {
     loadMindmap: (id: string) => Promise<void>;
     /** 편집 세션을 비우고 대시보드로 돌아갈 때 쓴다. */
     resetMindmap: () => void;
+
+    // Trash States
+    trashedMindmaps: any[];
+    /** 제목만 바꾼다. 성공 여부를 반환. */
+    renameMindmap: (id: string, title: string) => Promise<boolean>;
+    /** 행을 지우지 않고 deleted_at만 찍는다. 30일간 휴지통에 남는다. */
+    trashMindmap: (id: string) => Promise<boolean>;
+    restoreMindmap: (id: string) => Promise<boolean>;
+    /** 되돌릴 수 없다. 휴지통 화면에서만 호출한다. */
+    deleteMindmapForever: (id: string) => Promise<boolean>;
+    fetchTrash: () => Promise<void>;
+    /** 보관 기간이 지난 항목을 실제로 지운다. 대시보드 진입 시 한 번 돌린다. */
+    purgeExpiredTrash: () => Promise<void>;
 }
 
 export const useStore = create<MindMapState>((set, get) => ({
@@ -92,6 +127,7 @@ export const useStore = create<MindMapState>((set, get) => ({
     session: null,
     folders: [],
     mindmaps: [],
+    trashedMindmaps: [],
     currentMindmapId: null,
     currentFolderId: null,
 
@@ -185,7 +221,12 @@ export const useStore = create<MindMapState>((set, get) => ({
         if (!error) set({ folders: data });
     },
     fetchMindmaps: async (folderId = null) => {
-        let query = supabase.from('mindmaps').select('*').order('updated_at', { ascending: false });
+        // 휴지통에 있는 항목은 대시보드에 나오면 안 된다.
+        let query = supabase
+            .from('mindmaps')
+            .select('*')
+            .is('deleted_at', null)
+            .order('updated_at', { ascending: false });
         if (folderId) query = query.eq('folder_id', folderId);
         else query = query.is('folder_id', null);
 
@@ -274,6 +315,7 @@ export const useStore = create<MindMapState>((set, get) => ({
             .from('mindmaps')
             .select('*')
             .eq('id', id)
+            .is('deleted_at', null)
             .single();
 
         if (!error && data) {
@@ -284,6 +326,72 @@ export const useStore = create<MindMapState>((set, get) => ({
                 edges: (data.edges ?? []) as Edge[],
             });
         }
+    },
+    // Trash Actions
+    renameMindmap: async (id, title) => {
+        const { data, error } = await supabase
+            .from('mindmaps')
+            .update({ title, updated_at: new Date().toISOString() })
+            .eq('id', id)
+            .is('deleted_at', null)
+            .select('id');
+
+        if (!changedOne(data, error, 'renaming mindmap')) return false;
+        set({ mindmaps: get().mindmaps.map(m => (m.id === id ? { ...m, title } : m)) });
+        return true;
+    },
+    trashMindmap: async (id) => {
+        const { data, error } = await supabase
+            .from('mindmaps')
+            .update({ deleted_at: new Date().toISOString() })
+            .eq('id', id)
+            .is('deleted_at', null)
+            .select('id');
+
+        if (!changedOne(data, error, 'trashing mindmap')) return false;
+        set({ mindmaps: get().mindmaps.filter(m => m.id !== id) });
+        // 편집 중이던 맵을 버렸다면 세션도 비운다. 안 그러면 다음 저장이 되살린다.
+        if (get().currentMindmapId === id) set({ currentMindmapId: null, currentFolderId: null });
+        return true;
+    },
+    restoreMindmap: async (id) => {
+        const { data, error } = await supabase
+            .from('mindmaps')
+            .update({ deleted_at: null })
+            .eq('id', id)
+            .select('id');
+
+        if (!changedOne(data, error, 'restoring mindmap')) return false;
+        set({ trashedMindmaps: get().trashedMindmaps.filter(m => m.id !== id) });
+        return true;
+    },
+    deleteMindmapForever: async (id) => {
+        const { data, error } = await supabase
+            .from('mindmaps')
+            .delete()
+            .eq('id', id)
+            .select('id');
+
+        if (!changedOne(data, error, 'deleting mindmap')) return false;
+        set({ trashedMindmaps: get().trashedMindmaps.filter(m => m.id !== id) });
+        return true;
+    },
+    fetchTrash: async () => {
+        const { data, error } = await supabase
+            .from('mindmaps')
+            .select('*')
+            .not('deleted_at', 'is', null)
+            .order('deleted_at', { ascending: false });
+        if (!error) set({ trashedMindmaps: data ?? [] });
+    },
+    purgeExpiredTrash: async () => {
+        const cutoff = new Date(Date.now() - TRASH_RETENTION_DAYS * 86_400_000).toISOString();
+        const { error } = await supabase
+            .from('mindmaps')
+            .delete()
+            .not('deleted_at', 'is', null)
+            .lt('deleted_at', cutoff);
+        if (error) console.error('Error purging expired trash:', error);
     },
     resetMindmap: () => set({
         currentMindmapId: null,
