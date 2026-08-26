@@ -226,6 +226,20 @@
 .node-text-content {
   line-height: 1.5;
   white-space: pre-wrap;
+  /*
+    노드 폭을 넘길 수 있는 요소가 하나도 없어야 한다.
+    - 줄바꿈 기준은 언제나 부모(=노드) 폭이라 노드를 줄이면 그 폭에서 다시 접힌다.
+    - 띄어쓰기 없는 긴 URL 같은 토큰은 anywhere 로 강제로 끊는다.
+  */
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.node-text-content img,
+.node-text-content pre,
+.node-text-content table {
+  max-width: 100%;
 }
 
 .node-text-content p {

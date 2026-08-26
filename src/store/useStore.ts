@@ -44,6 +44,13 @@ export interface NodeData {
     color: string;
     url?: string;
     textAlign?: 'left' | 'center' | 'right';
+    /**
+     * 사용자가 직접 정한 크기(px). 없으면 내용에 맞춰 자동으로 늘어난다.
+     * reactflow는 크기를 node.style에 쓰는데 그 값은 memo된 노드 컴포넌트까지
+     * 내려오지 않는다. 레이아웃을 "자동 / 고정"으로 갈라야 하므로 data에도 같이 둔다.
+     */
+    width?: number;
+    height?: number;
 }
 
 // 새 마인드맵의 시작 노드. 호출할 때마다 새 객체를 만들어
@@ -67,6 +74,10 @@ interface MindMapState {
     onConnect: (connection: Connection) => void;
     addNode: (shape: NodeType, position: { x: number; y: number }) => void;
     updateNode: (id: string, data: Partial<NodeData>) => void;
+    /** 노드 크기를 px로 고정한다. 넘기지 않은 축은 그대로 둔다. */
+    setNodeSize: (id: string, size: { width?: number; height?: number }) => void;
+    /** 고정 크기를 걷어내고 다시 내용에 맞춰 자동으로 커지게 한다. */
+    resetNodeSize: (id: string) => void;
     setNodes: (nodes: Node<NodeData>[]) => void;
     setEdges: (edges: Edge[]) => void;
     toggleEditMode: () => void;
@@ -173,6 +184,35 @@ export const useStore = create<MindMapState>((set, get) => ({
             nodes: get().nodes.map((node) =>
                 node.id === id ? { ...node, data: { ...node.data, ...data } } : node
             ),
+        });
+    },
+    setNodeSize: (id, size) => {
+        set({
+            nodes: get().nodes.map((node) => {
+                if (node.id !== id) return node;
+                const width = size.width ?? node.data.width;
+                const height = size.height ?? node.data.height;
+                // style은 reactflow가 노드 상자를 그릴 때 읽고, data는 노드 컴포넌트가
+                // 읽는다. 둘이 어긋나면 상자와 내용의 크기가 따로 논다.
+                return {
+                    ...node,
+                    width,
+                    height,
+                    style: { ...(node.style ?? {}), width, height },
+                    data: { ...node.data, width, height },
+                };
+            }),
+        });
+    },
+    resetNodeSize: (id) => {
+        set({
+            nodes: get().nodes.map((node) => {
+                if (node.id !== id) return node;
+                const { width: _sw, height: _sh, ...style } = (node.style ?? {}) as Record<string, unknown>;
+                const { width: _dw, height: _dh, ...data } = node.data;
+                // width/height를 지워야 reactflow가 DOM을 다시 재서 크기를 잡는다.
+                return { ...node, style, data: data as NodeData, width: undefined, height: undefined };
+            }),
         });
     },
     setNodes: (nodes) => set({ nodes }),

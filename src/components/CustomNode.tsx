@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { Handle, Position, useReactFlow, NodeResizer } from 'reactflow';
 import { Globe, Plus } from 'lucide-react';
 import { type NodeData, useStore } from '../store/useStore';
+import { isDarkColor } from './ColorPalette';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -16,7 +17,7 @@ const LinkPreview = ({ url }: { url: string }) => {
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="nodrag block mt-2 w-48 bg-white rounded-lg border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+            className="nodrag block mt-2 w-full max-w-[192px] bg-white rounded-lg border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
             onClick={(e: React.MouseEvent) => e.stopPropagation()}
         >
             <div className="h-24 bg-gray-100 relative overflow-hidden flex items-center justify-center">
@@ -62,7 +63,7 @@ const ShapeBackground = ({ shape, color, selected }: { shape: string; color: str
 };
 
 const CustomNode = ({ id, data, selected }: { data: NodeData; id: string; selected: boolean }) => {
-    const { searchQuery, isEditMode, updateNode, addNode, appMode } = useStore();
+    const { searchQuery, isEditMode, updateNode, setNodeSize, addNode, appMode } = useStore();
     const reactFlowInstance = useReactFlow();
 
     const isHighlighted = searchQuery && (
@@ -81,25 +82,40 @@ const CustomNode = ({ id, data, selected }: { data: NodeData; id: string; select
 
     const showTitle = appMode === 'mindmap' && data.shape === 'rectangle';
 
+    // 크기를 직접 정한 노드는 그 상자를 꽉 채우고, 아니면 내용에 맞춰 늘어난다.
+    // 폭이 정해지면 본문은 그 폭에서 줄바꿈되고, 높이가 정해지면 넘치는 만큼 잘린다.
+    const hasFixedWidth = typeof data.width === 'number';
+    const hasFixedHeight = typeof data.height === 'number';
+    const isDarkBg = isDarkColor(data.color || '#ffffff');
+
     return (
         <div
             className={cn(
-                "min-w-[200px] max-w-[320px] min-h-[80px] flex flex-col p-6 relative group/node",
+                "flex flex-col p-6 relative group/node",
+                // 자동 크기일 때만 폭/높이 한계를 건다. 직접 정한 크기가 이기게 둔다.
+                !hasFixedWidth && "min-w-[200px] max-w-[320px]",
+                !hasFixedHeight && "min-h-[80px]",
+                hasFixedHeight && "overflow-hidden",
                 !isEditMode && 'cursor-default',
                 isHighlighted && 'ring-4 ring-yellow-300 rounded-xl'
             )}
             style={{
-                width: appMode === 'flowchart' ? '100%' : 'auto',
-                height: appMode === 'flowchart' ? '100%' : 'auto'
+                width: hasFixedWidth || appMode === 'flowchart' ? '100%' : 'auto',
+                height: hasFixedHeight || appMode === 'flowchart' ? '100%' : 'auto'
             }}
         >
-            {/* Node Resizer - Flowchart mode only */}
-            {isEditMode && appMode === 'flowchart' && (
+            {/* 크기 조절 핸들. 마인드맵과 순서도 모두에서 쓴다. */}
+            {isEditMode && (
                 <NodeResizer
                     isVisible={selected}
-                    minWidth={100}
-                    minHeight={50}
-                    handleClassName="!bg-blue-500 !border-white !w-2.5 !h-2.5"
+                    minWidth={120}
+                    minHeight={60}
+                    onResize={(_, params) => setNodeSize(id, {
+                        width: Math.round(params.width),
+                        height: Math.round(params.height),
+                    })}
+                    handleClassName="!bg-blue-500 !border-white !w-2.5 !h-2.5 !rounded-sm"
+                    lineClassName="!border-blue-400"
                 />
             )}
 
@@ -138,10 +154,15 @@ const CustomNode = ({ id, data, selected }: { data: NodeData; id: string; select
                 </button>
             )}
 
-            <div className={cn(
-                "flex flex-col w-full relative z-20 pointer-events-none",
-                !showTitle && "justify-center items-center"
-            )}>
+            <div
+                className={cn(
+                    "flex flex-col w-full min-h-0 relative z-20 pointer-events-none",
+                    hasFixedHeight && "overflow-hidden",
+                    !showTitle && "justify-center items-center"
+                )}
+                // 진한 배경을 고르면 기본 회색 글씨가 묻힌다. 밝은 글씨로 뒤집는다.
+                style={isDarkBg ? { color: '#f8fafc' } : undefined}
+            >
                 {showTitle && (
                     <div className="w-full pointer-events-auto mt-1">
                         <input
@@ -150,14 +171,15 @@ const CustomNode = ({ id, data, selected }: { data: NodeData; id: string; select
                             onChange={(e) => updateNode(id, { title: e.target.value })}
                             readOnly={!isEditMode}
                             className={cn(
-                                "w-full bg-transparent border-none focus:outline-none font-bold text-gray-800 text-lg placeholder-gray-300 mb-0.5 px-1",
+                                "w-full bg-transparent border-none focus:outline-none font-bold text-lg placeholder-gray-300 mb-0.5 px-1",
+                                isDarkBg ? "text-slate-50" : "text-gray-800",
                                 !isEditMode && "cursor-default"
                             )}
                             style={{ textAlign: data.textAlign as any || 'center' }}
                             placeholder="제목"
                         />
 
-                        <hr className="border-gray-200/50 mb-2" />
+                        <hr className={cn("mb-2", isDarkBg ? "border-white/25" : "border-gray-200/50")} />
                     </div>
                 )}
 
@@ -179,7 +201,8 @@ const CustomNode = ({ id, data, selected }: { data: NodeData; id: string; select
                             "w-full bg-transparent border-none text-sm node-text-content whitespace-pre-wrap break-words",
                             !isEditMode && "read-only-editor"
                         )}
-                        style={{ padding: 0, textAlign: 'inherit' }}
+                        // 폭은 항상 노드 폭을 따른다. 노드를 줄이면 그 폭에서 다시 접힌다.
+                        style={{ padding: 0, textAlign: 'inherit', color: 'inherit' }}
                         dangerouslySetInnerHTML={{ __html: data.content || '<p><br></p>' }}
                     />
                 </div>

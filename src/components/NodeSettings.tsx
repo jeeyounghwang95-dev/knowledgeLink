@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { Node } from 'reactflow';
-import { Type, Palette, Link2, Trash2, Settings2, FileText, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { Type, Palette, Link2, Trash2, Settings2, FileText, AlignLeft, AlignCenter, AlignRight, Maximize2, RotateCcw } from 'lucide-react';
 import { useStore, type NodeData } from '../store/useStore';
+import ColorPalette from './ColorPalette';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 
@@ -15,7 +16,7 @@ const modules = {
 };
 
 const NodeSettings = ({ selectedNode }: { selectedNode: Node<NodeData> | null }) => {
-    const { updateNode, onNodesChange, isEditMode, appMode } = useStore();
+    const { updateNode, setNodeSize, resetNodeSize, onNodesChange, isEditMode, appMode } = useStore();
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [url, setUrl] = useState('');
@@ -41,14 +42,19 @@ const NodeSettings = ({ selectedNode }: { selectedNode: Node<NodeData> | null })
     };
 
 
-    const colors = [
-        { name: 'White', value: '#ffffff' },
-        { name: 'Yellow', value: '#fff9db' },
-        { name: 'Red', value: '#fff5f5' },
-        { name: 'Green', value: '#f1fbee' },
-        { name: 'Blue', value: '#e7f5ff' },
-        { name: 'Purple', value: '#f3f0ff' },
-    ];
+    // 표시값은 스토어를 그대로 따라간다. 그래야 모서리를 끌어 크기를 바꾸는
+    // 동안에도 입력칸 숫자가 같이 움직인다.
+    const width = selectedNode.data.width ?? Math.round(selectedNode.width ?? 0);
+    const height = selectedNode.data.height ?? Math.round(selectedNode.height ?? 0);
+    const hasFixedSize = selectedNode.data.width !== undefined || selectedNode.data.height !== undefined;
+
+    const handleSize = (axis: 'width' | 'height', raw: string) => {
+        // 지우는 중(빈 칸)에는 0으로 찌그러뜨리지 않는다.
+        if (raw.trim() === '') return;
+        const n = Number(raw);
+        if (Number.isNaN(n)) return;
+        setNodeSize(selectedNode.id, { [axis]: Math.max(axis === 'width' ? 120 : 60, Math.round(n)) });
+    };
 
     const handleDelete = () => {
         onNodesChange([{ type: 'remove', id: selectedNode.id }]);
@@ -104,6 +110,44 @@ const NodeSettings = ({ selectedNode }: { selectedNode: Node<NodeData> | null })
                     </div>
                 </div>
 
+                {/* Node Size */}
+                <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                        <Maximize2 size={14} />
+                        노드 크기
+                    </label>
+                    <div className="flex items-center gap-2">
+                        {([['width', '너비'], ['height', '높이']] as const).map(([axis, label]) => (
+                            <div
+                                key={axis}
+                                className="flex-1 flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus-within:ring-2 focus-within:ring-blue-400 transition-all"
+                            >
+                                <span className="text-[10px] font-black text-gray-400 shrink-0">{label}</span>
+                                <input
+                                    type="number"
+                                    min={axis === 'width' ? 120 : 60}
+                                    step={10}
+                                    value={axis === 'width' ? width : height}
+                                    onChange={(e) => handleSize(axis, e.target.value)}
+                                    className="w-full min-w-0 bg-transparent text-sm font-bold text-gray-700 focus:outline-none"
+                                />
+                                <span className="text-[10px] font-bold text-gray-300 shrink-0">px</span>
+                            </div>
+                        ))}
+                    </div>
+                    <button
+                        onClick={() => resetNodeSize(selectedNode.id)}
+                        disabled={!hasFixedSize}
+                        className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-gray-200 text-xs font-bold text-gray-500 hover:bg-gray-50 hover:text-blue-600 hover:border-blue-100 transition-all disabled:opacity-40 disabled:pointer-events-none"
+                    >
+                        <RotateCcw size={13} />
+                        내용에 맞춰 자동 크기
+                    </button>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                        캔버스에서 노드 모서리를 끌어도 크기가 바뀝니다. 본문은 노드 너비에 맞춰 자동으로 줄바꿈됩니다.
+                    </p>
+                </div>
+
                 {/* Text Alignment */}
                 <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
@@ -155,21 +199,13 @@ const NodeSettings = ({ selectedNode }: { selectedNode: Node<NodeData> | null })
                         <Palette size={14} />
                         배경 색상
                     </label>
-                    <div className="flex gap-2 flex-wrap">
-                        {colors.map((c) => (
-                            <button
-                                key={c.value}
-                                onClick={() => {
-                                    setColor(c.value);
-                                    handleUpdate('color', c.value);
-                                }}
-                                className={`w-8 h-8 rounded-full border-2 transition-all hover:scale-110 ${color === c.value ? 'border-blue-500 ring-4 ring-blue-50' : 'border-gray-100'
-                                    }`}
-                                style={{ backgroundColor: c.value }}
-                                title={c.name}
-                            />
-                        ))}
-                    </div>
+                    <ColorPalette
+                        value={color || '#ffffff'}
+                        onChange={(hex) => {
+                            setColor(hex);
+                            handleUpdate('color', hex);
+                        }}
+                    />
                 </div>
 
                 {/* Delete Action */}
