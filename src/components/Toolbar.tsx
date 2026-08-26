@@ -7,6 +7,7 @@ import {
     Edit2,
     Check
 } from 'lucide-react';
+import { useReactFlow } from 'reactflow';
 import { useStore, type NodeType } from '../store/useStore';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -29,6 +30,41 @@ const Toolbar = () => {
         appMode,
         toggleAppMode
     } = useStore();
+    const { screenToFlowPosition } = useReactFlow();
+
+    /**
+     * 새 노드는 지금 보고 있는 화면 한가운데에 놓는다.
+     *
+     * 예전에는 flow 좌표에 상수를 박아뒀는데, 그 좌표는 화면이 아니라 캔버스
+     * 원점 기준이다. 그래서 사용자가 캔버스를 옮기거나 확대해 두면 새 노드가
+     * 보이지 않는 엉뚱한 곳에 생겼다. 화면 중앙의 픽셀 좌표를 flow 좌표로
+     * 변환해서 쓰면 확대/이동 상태와 무관하게 항상 보이는 곳에 생긴다.
+     *
+     * 캔버스 영역은 툴바 아래쪽이라 window 중앙과 다르다. 실제 pane의
+     * 사각형을 재서 그 중앙을 쓴다.
+     */
+    const addNodeAtViewportCenter = (shape: NodeType) => {
+        const pane = document.querySelector('.react-flow__renderer') ?? document.querySelector('.react-flow');
+        const rect = pane?.getBoundingClientRect();
+        const screenCenter = rect
+            ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+            : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+
+        const center = screenToFlowPosition(screenCenter);
+
+        // position 은 노드의 좌상단이다. 기본 크기의 절반만큼 당겨야
+        // 노드가 중앙에 놓인 것처럼 보인다.
+        const HALF_W = 110;
+        const HALF_H = 40;
+
+        // 연달아 추가할 때 완전히 겹쳐 한 개처럼 보이지 않도록 살짝 흩는다.
+        const jitter = () => (Math.random() - 0.5) * 48;
+
+        addNode(shape, {
+            x: center.x - HALF_W + jitter(),
+            y: center.y - HALF_H + jitter(),
+        });
+    };
 
     const nodeTypes: { type: NodeType; icon: any; label: string }[] = [
         { type: 'rectangle', icon: Square, label: '프로세스' },
@@ -97,7 +133,7 @@ const Toolbar = () => {
                         {visibleNodeTypes.map((node) => (
                             <button
                                 key={node.type}
-                                onClick={() => addNode(node.type, { x: 100 + Math.random() * 300, y: 100 + Math.random() * 300 })}
+                                onClick={() => addNodeAtViewportCenter(node.type)}
                                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors group relative"
                                 title={node.label}
                             >
