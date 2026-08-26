@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useLayoutEffect, useRef } from 'react';
 import { Handle, Position, useReactFlow, NodeResizer } from 'reactflow';
 import { Globe, Plus } from 'lucide-react';
 import { type NodeData, useStore } from '../store/useStore';
@@ -88,6 +88,15 @@ const CustomNode = ({ id, data, selected }: { data: NodeData; id: string; select
     const hasFixedHeight = typeof data.height === 'number';
     const isDarkBg = isDarkColor(data.color || '#ffffff');
 
+    // 제목이 노드 너비를 넘어가면 잘리지 않고 줄바꿈되도록 textarea 높이를 내용에 맞춰 조절
+    const titleRef = useRef<HTMLTextAreaElement>(null);
+    useLayoutEffect(() => {
+        const el = titleRef.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = `${el.scrollHeight}px`;
+    }, [data.title, showTitle, data.width]);
+
     return (
         <div
             className={cn(
@@ -165,17 +174,31 @@ const CustomNode = ({ id, data, selected }: { data: NodeData; id: string; select
             >
                 {showTitle && (
                     <div className="w-full pointer-events-auto mt-1">
-                        <input
-                            type="text"
+                        <textarea
+                            ref={titleRef}
+                            rows={1}
                             value={data.title}
                             onChange={(e) => updateNode(id, { title: e.target.value })}
+                            onKeyDown={(e) => {
+                                // 제목에서는 줄바꿈 입력 대신 포커스 해제
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    e.currentTarget.blur();
+                                }
+                            }}
                             readOnly={!isEditMode}
                             className={cn(
-                                "w-full bg-transparent border-none focus:outline-none font-bold text-lg placeholder-gray-300 mb-0.5 px-1",
+                                "nodrag w-full block bg-transparent border-none focus:outline-none font-bold text-lg placeholder-gray-300 mb-0.5 px-1",
+                                "resize-none overflow-hidden leading-snug",
                                 isDarkBg ? "text-slate-50" : "text-gray-800",
                                 !isEditMode && "cursor-default"
                             )}
-                            style={{ textAlign: data.textAlign as any || 'center' }}
+                            style={{
+                                textAlign: data.textAlign as any || 'center',
+                                whiteSpace: 'pre-wrap',
+                                overflowWrap: 'anywhere',
+                                wordBreak: 'break-word'
+                            }}
                             placeholder="제목"
                         />
 
